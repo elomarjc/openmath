@@ -228,12 +228,21 @@ class OpenMathApp {
       });
     }
 
-    // Precision selector
+    // Precision selectors (Global header and Sidebar drawer)
     const precSelect = document.getElementById("global-precision-select");
+    const sidePrecSelect = document.getElementById("sidebar-precision-select");
+
+    const updatePrecision = (val) => {
+      if (precSelect) precSelect.value = val;
+      if (sidePrecSelect) sidePrecSelect.value = val;
+      if (this.worksheet) this.worksheet.setGlobalPrecision(val);
+    };
+
     if (precSelect) {
-      precSelect.addEventListener("change", (e) => {
-        if (this.worksheet) this.worksheet.setGlobalPrecision(e.target.value);
-      });
+      precSelect.addEventListener("change", (e) => updatePrecision(e.target.value));
+    }
+    if (sidePrecSelect) {
+      sidePrecSelect.addEventListener("change", (e) => updatePrecision(e.target.value));
     }
 
     // Clear All

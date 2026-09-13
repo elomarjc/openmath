@@ -68,9 +68,9 @@
     </div>
 
     <div class="header-right">
-      <button id="btn-add-cell-top" class="header-btn desktop-only" title="New Calculation Cell">
+      <button id="btn-add-cell-top" class="header-btn" title="New Calculation Cell">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        <span>Add Cell</span>
+        <span class="desktop-only">Add Cell</span>
       </button>
 
       <!-- Desktop Import (Physical file input overlay over entire button) -->
@@ -126,6 +126,19 @@
           <button id="theme-opt-dark" class="pill-option active" title="Switch to Dark Mode">🌙 Dark</button>
           <button id="theme-opt-light" class="pill-option" title="Switch to Light Mode">☀️ Light</button>
         </div>
+      </div>
+
+      <!-- Quick Precision Selector in Sidebar (Phone/Tablet) -->
+      <div class="sidebar-precision-bar">
+        <span class="sidebar-theme-title">Precision</span>
+        <select id="sidebar-precision-select" class="sidebar-select" title="Precision (Digits)">
+          <option value="4">4 Digits</option>
+          <option value="6" selected>6 Digits</option>
+          <option value="10">10 Digits</option>
+          <option value="15">15 Digits</option>
+          <option value="25">25 Digits</option>
+          <option value="50">50 Digits</option>
+        </select>
       </div>
 
       <div class="palettes-container">

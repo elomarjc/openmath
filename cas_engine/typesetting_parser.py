@@ -12,6 +12,26 @@ from typing import Optional, List, Tuple, Dict, Any
 from .wheeler import worksheet_base64_decode
 
 
+def _decode_maple_escapes(s: str) -> str:
+    """
+    Decode Maple XML octal byte escapes such as \\303\\270 -> ø, \\303\\245 -> å, \\303\\246 -> æ.
+    Handles multi-byte UTF-8 sequences as well as single-byte characters.
+    """
+    if not s or '\\' not in s:
+        return s
+    def _decode_octal(match):
+        octals = re.findall(r'\\([0-7]{3})', match.group(0))
+        try:
+            raw_bytes = bytes(int(o, 8) for o in octals)
+            try:
+                return raw_bytes.decode('utf-8')
+            except UnicodeDecodeError:
+                return raw_bytes.decode('latin-1', errors='ignore')
+        except Exception:
+            return match.group(0)
+    return re.sub(r'(?:\\[0-7]{3})+', _decode_octal, s)
+
+
 class TNode:
     """AST node for Typesetting functions (mrow, mfrac, msup, mn, mo, mi, etc.)."""
     def __init__(self, name: str, args=None, kwargs=None):
@@ -415,6 +435,7 @@ def decode_display_pure_python(display: str) -> Tuple[str, str]:
                             continue
 
                         val = HTML_ENTITIES.get(val, val)
+                        val = _decode_maple_escapes(val)
                         val = val.strip()
                         if val:
                             toks.append(val)
@@ -432,13 +453,21 @@ def decode_display_pure_python(display: str) -> Tuple[str, str]:
                     continue
                 if t == '0' and k + 1 < len(toks) and toks[k+1] == 'atomic':
                     k += 2
+                    sub = ""
                     if k < len(toks) and toks[k] not in ('=', '+', '-', '*', '/', ')', '(', ',', ';', ':'):
                         sub = toks[k]
                         k += 1
-                        if res:
-                            res[-1] = f"{res[-1]}_{sub}"
+                    if len(res) >= 2:
+                        base = res[-2]
+                        sub_name = res[-1]
+                        full_sub = f"{sub_name}{sub}" if sub else sub_name
+                        res[-2] = f"{base}_{{{full_sub}}}"
+                        res.pop()
+                    elif res:
+                        if sub:
+                            res[-1] = f"{res[-1]}_{{{sub}}}"
                         else:
-                            res.append(sub)
+                            res[-1] = f"{res[-1]}_{{0}}"
                     continue
                 if t == '*' and res and res[-1] == '*':
                     k += 1

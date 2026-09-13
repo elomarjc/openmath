@@ -145,10 +145,6 @@
     display: none !important;
   }
 
-  .doc-math-display {
-    font-size: 16px;
-  }
-
   .math-output-wrapper {
     padding: 2px 28px 2px 8px;
     min-height: 24px;
@@ -206,5 +202,35 @@
   .app-status-bar {
     padding: 0 10px;
     font-size: 11px;
+  }
+}
+
+/* Mobile Phone / Tablet in Landscape Orientation (Rotate Device) */
+@media (max-width: 950px) and (orientation: landscape) {
+  .app-header {
+    height: 42px;
+    padding: 0 10px;
+  }
+
+  .precision-picker {
+    display: inline-flex !important;
+  }
+
+  .app-main-layout {
+    height: calc(100vh - 42px - 22px);
+  }
+
+  .app-status-bar {
+    height: 22px;
+    font-size: 11px;
+  }
+
+  .worksheet-main {
+    padding: 6px 12px 28px 12px;
+  }
+
+  .worksheet-container {
+    padding: 12px 18px 28px 18px;
+    min-height: calc(100vh - 80px);
   }
 }

@@ -652,56 +652,25 @@
   padding: 1px 0;
 }
 
-.doc-math-display {
-  font-family: "Times New Roman", Times, "Cambria Math", serif;
-  font-size: 16.5px;
-  line-height: 1.5;
-  color: var(--text-primary);
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 3px;
-  cursor: text;
-  width: 100%;
-  user-select: text;
-}
-
-.doc-math-display .doc-var {
-  font-style: italic;
-}
-
-.doc-math-display .doc-upright {
-  font-style: normal;
-}
-
-.doc-math-frac {
-  display: inline-flex;
-  flex-direction: column;
+.sidebar-precision-bar {
+  display: flex;
   align-items: center;
-  vertical-align: middle;
-  margin: 0 4px;
-  font-size: 0.92em;
-  line-height: 1.15;
+  justify-content: space-between;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-hover);
 }
 
-.doc-math-num {
-  padding: 0 3px 1px 3px;
-}
-
-.doc-math-bar {
-  display: block;
-  width: 100%;
-  border-bottom: 1.5px solid currentColor;
-  margin: 1px 0;
-}
-
-.doc-math-den {
-  padding: 1px 3px 0 3px;
-}
-
-.doc-math-part {
-  display: inline-flex;
-  align-items: baseline;
+.sidebar-select {
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
 }
 
 /* Hierarchical Section Indentation matching Desktop OpenMath */

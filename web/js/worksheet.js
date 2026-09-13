@@ -110,18 +110,14 @@ export class WorksheetManager {
     cellEl.dataset.cellId = cellId;
     cellEl.dataset.sectionLevel = secLevel;
 
-    const hasRichDocDisplay = isDocumentMode && (spans.length > 0 || initialText.trim().length > 0);
-    const docDisplayHtml = hasRichDocDisplay ? this.renderDocMath(initialText, spans) : "";
+    const formattedText = this.formatSubscriptsAndSuperscripts(initialText);
 
     cellEl.innerHTML = `
       <div class="cell-bracket" ${showPromptAndBracket ? "" : 'style="display: none;"'} title="Execution Group ["></div>
       <div class="cell-content">
         <div class="cell-input-row">
           <span class="math-prompt" ${showPromptAndBracket ? "" : 'style="display: none;"'}>&gt;</span>
-          <div class="cell-editor-container" style="flex: 1; min-width: 0;">
-            ${hasRichDocDisplay ? `<div class="doc-math-display">${docDisplayHtml}</div>` : ""}
-            <textarea class="cell-input" placeholder="" rows="1" spellcheck="false" ${hasRichDocDisplay ? 'style="display: none;"' : ''}>${this.escapeHtml(initialText)}</textarea>
-          </div>
+          <textarea class="cell-input" placeholder="" rows="1" spellcheck="false">${this.escapeHtml(formattedText)}</textarea>
         </div>
         <div class="cell-output-row" style="display: none;">
           <div class="math-output-wrapper">
@@ -133,31 +129,16 @@ export class WorksheetManager {
     `;
 
     const inputEl = cellEl.querySelector(".cell-input");
-    const docDisplayEl = cellEl.querySelector(".doc-math-display");
     cellObj.dom = cellEl;
     cellObj.inputEl = inputEl;
 
     // Auto-expand textarea height
     const autoResize = () => {
       inputEl.style.height = "auto";
-      inputEl.style.height = `${inputEl.scrollHeight}px`;
+      inputEl.style.height = `${Math.max(24, inputEl.scrollHeight)}px`;
     };
 
-    if (docDisplayEl) {
-      docDisplayEl.addEventListener("click", () => {
-        docDisplayEl.style.display = "none";
-        inputEl.style.display = "block";
-        autoResize();
-        inputEl.focus();
-      });
-    }
-
-    inputEl.addEventListener("input", () => {
-      autoResize();
-      if (docDisplayEl) {
-        docDisplayEl.innerHTML = this.renderDocMath(inputEl.value, []);
-      }
-    });
+    inputEl.addEventListener("input", autoResize);
 
     // Focus tracking
     inputEl.addEventListener("focus", () => {
@@ -166,21 +147,9 @@ export class WorksheetManager {
       cellEl.classList.add("focused");
     });
 
-    inputEl.addEventListener("blur", () => {
-      if (isDocumentMode && docDisplayEl && inputEl.value.trim()) {
-        docDisplayEl.innerHTML = this.renderDocMath(inputEl.value, spans.length ? spans : []);
-        inputEl.style.display = "none";
-        docDisplayEl.style.display = "flex";
-      }
-    });
-
     const bracketEl = cellEl.querySelector(".cell-bracket");
     if (bracketEl) {
       bracketEl.addEventListener("click", () => {
-        if (docDisplayEl && docDisplayEl.style.display !== "none") {
-          docDisplayEl.style.display = "none";
-          inputEl.style.display = "block";
-        }
         inputEl.focus();
       });
     }
@@ -235,10 +204,6 @@ export class WorksheetManager {
     }
 
     if (focus) {
-      if (docDisplayEl && isDocumentMode) {
-        docDisplayEl.style.display = "none";
-        inputEl.style.display = "block";
-      }
       inputEl.focus();
       this.activeCellId = cellId;
     }
@@ -485,64 +450,44 @@ export class WorksheetManager {
     }
   }
 
-  renderDocMath(text, spans = []) {
-    if (spans && spans.length > 0) {
-      return this.renderSpansHtml(spans);
+  formatSubscriptsAndSuperscripts(text) {
+    if (!text || (text.indexOf('_') === -1 && text.indexOf('^') === -1)) {
+      return text || "";
     }
-    return this.formatMathSnippet(text);
-  }
+    const SUB_MAP = {
+      '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
+      '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
+      '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎',
+      'a': 'ₐ', 'e': 'ₑ', 'h': 'ₕ', 'i': 'ᵢ', 'j': 'ⱼ',
+      'k': 'ₖ', 'l': 'ₗ', 'm': 'ₘ', 'n': 'ₙ', 'o': 'ₒ',
+      'p': 'ₚ', 'r': 'ᵣ', 's': 'ₛ', 't': 'ₜ', 'u': 'ᵤ',
+      'v': 'ᵥ', 'x': 'ₓ'
+    };
+    const SUPER_MAP = {
+      '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+      '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
+      '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾',
+      'n': 'ⁿ', 'i': 'ⁱ'
+    };
 
-  renderSpansHtml(spans) {
-    if (!spans || !spans.length) return "";
-    let parts = [];
-    for (const sp of spans) {
-      if (sp.type === "fraction") {
-        const numHtml = this.formatMathSnippet(sp.num);
-        const denHtml = this.formatMathSnippet(sp.den);
-        parts.push(`<span class="doc-math-frac"><span class="doc-math-num">${numHtml}</span><span class="doc-math-bar"></span><span class="doc-math-den">${denHtml}</span></span>`);
-      } else {
-        let t = sp.text || "";
-        let style = "";
-        if (sp.bg_color) {
-          style += `background-color: ${sp.bg_color}; padding: 2px 6px; border-radius: 3px; font-weight: bold;`;
-        }
-        if (sp.color) {
-          style += `color: ${sp.color}; font-weight: bold;`;
-        }
-        const formatted = this.formatMathSnippet(t);
-        if (style) {
-          parts.push(`<span style="${style}">${formatted}</span>`);
-        } else {
-          parts.push(`<span class="doc-math-part">${formatted}</span>`);
-        }
-      }
-    }
-    return parts.join(" ");
-  }
+    let formatted = text;
+    // Superscripts: ^{...} or ^\d+
+    formatted = formatted.replace(/\^{([0-9\+\-\=]+)}/g, (m, g) => {
+      return g.split('').map((c) => SUPER_MAP[c] || c).join('');
+    });
+    formatted = formatted.replace(/\^([0-9]+)/g, (m, g) => {
+      return g.split('').map((c) => SUPER_MAP[c] || c).join('');
+    });
 
-  formatMathSnippet(str) {
-    if (!str) return "";
-    let s = this.escapeHtml(str);
+    // Subscripts: _{...} or _[0-9a-zA-Z]+
+    formatted = formatted.replace(/(?<=[a-zA-Z0-9_\)\]\}])_+{([0-9a-zA-Z\+\-\=]+)}/g, (m, g) => {
+      return g.split('').map((c) => SUB_MAP[c.toLowerCase()] || c).join('');
+    });
+    formatted = formatted.replace(/(?<=[a-zA-Z0-9_\)\]\}])_+([0-9a-zA-Z]+)(?![a-zA-Z0-9])/g, (m, g) => {
+      return g.split('').map((c) => SUB_MAP[c.toLowerCase()] || c).join('');
+    });
 
-    // Convert subscripts: e.g. I_{R3} or I_R3 or I_slut
-    s = s.replace(/([a-zA-Z\u0370-\u03ff]+)_\{([^}]+)\}/g, '<span class="doc-var">$1</span><sub>$2</sub>');
-    s = s.replace(/([a-zA-Z\u0370-\u03ff]+)_([a-zA-Z0-9\u00e6\u00f8\u00e5]+)/g, '<span class="doc-var">$1</span><sub>$2</sub>');
-
-    // Convert superscripts: e.g. x^{2} or x^2
-    s = s.replace(/\^\{([^}]+)\}/g, '<sup>$1</sup>');
-    s = s.replace(/\^([0-9\+\-]+)/g, '<sup>$1</sup>');
-
-    // Standalone variable identifiers italicized: e.g. V, I, R, t, e, pi, omega
-    s = s.replace(/\b([a-zA-Z\u0370-\u03ff])\b/g, '<span class="doc-var">$1</span>');
-
-    // Clean operators
-    s = s.replace(/\s*:=\s*/g, ' <span class="doc-upright">:=</span> ');
-    s = s.replace(/\s*=\s*/g, ' <span class="doc-upright">=</span> ');
-    s = s.replace(/\s*\*\s*/g, ' <span class="doc-upright">·</span> ');
-    s = s.replace(/\s*\+\s*/g, ' <span class="doc-upright">+</span> ');
-    s = s.replace(/(?<=[0-9a-zA-Z])\s*-\s*(?=[0-9a-zA-Z])/g, ' <span class="doc-upright">−</span> ');
-
-    return s;
+    return formatted;
   }
 
   evaluateCell(cellId) {

@@ -21,6 +21,26 @@ from .wheeler import decode_worksheet_image
 from .typesetting_parser import batch_decode_displays, parse_typesetting
 
 
+def _decode_maple_escapes(s: str) -> str:
+    """
+    Decode Maple XML octal byte escapes such as \\303\\270 -> ø, \\303\\245 -> å, \\303\\246 -> æ.
+    Handles multi-byte UTF-8 sequences as well as single-byte characters.
+    """
+    if not s or '\\' not in s:
+        return s
+    def _decode_octal(match):
+        octals = re.findall(r'\\([0-7]{3})', match.group(0))
+        try:
+            raw_bytes = bytes(int(o, 8) for o in octals)
+            try:
+                return raw_bytes.decode('utf-8')
+            except UnicodeDecodeError:
+                return raw_bytes.decode('latin-1', errors='ignore')
+        except Exception:
+            return match.group(0)
+    return re.sub(r'(?:\\[0-7]{3})+', _decode_octal, s)
+
+
 class WorksheetIO:
     """
     Parser and Serializer for native Worksheet (.mw) documents.
@@ -86,16 +106,18 @@ class WorksheetIO:
         def get_equation_math(eq_elem: ET.Element) -> Tuple[str, str]:
             inp_eq = eq_elem.attrib.get('input-equation', '').strip()
             if inp_eq and not cls._is_base64_mprintslash(inp_eq) and inp_eq != 'JSFH':
+                inp_eq = _decode_maple_escapes(inp_eq)
                 return inp_eq, inp_eq
             disp = eq_elem.attrib.get('display', '')
             if disp in display_to_idx:
                 idx = display_to_idx[disp]
                 m_str, l_str = decoded_pairs[idx]
                 if m_str.strip() and m_str != 'JSFH':
-                    return m_str, l_str
+                    return _decode_maple_escapes(m_str), _decode_maple_escapes(l_str)
             # Fallback to eq text if not raw base64 or JSFH
             t = ''.join(eq_elem.itertext()).strip()
             if t and not cls._is_base64_mprintslash(t) and t != 'JSFH':
+                t = _decode_maple_escapes(t)
                 return t, t
             return "", ""
 
@@ -169,6 +191,7 @@ class WorksheetIO:
                     bg = font.attrib.get('background', '')
                     ftxt = ''.join(font.itertext()).strip()
                     ftxt = re.sub(r'\bJSFH\b', '', ftxt).strip()
+                    ftxt = _decode_maple_escapes(ftxt)
                     if bg and ftxt:
                         has_font_bg = True
                         m_rgb = re.search(r'\[(\d+),\s*(\d+),\s*(\d+)\]', bg)
@@ -241,7 +264,7 @@ class WorksheetIO:
                             for font in fonts:
                                 bg = font.attrib.get('background', '')
                                 fg = font.attrib.get('foreground', '') or font.attrib.get('color', '')
-                                ftxt = ''.join(font.itertext())
+                                ftxt = _decode_maple_escapes(''.join(font.itertext()))
                                 bg_val = _parse_worksheet_color(bg)
                                 fg_val = _parse_worksheet_color(fg)
                                 if bg_val:
@@ -256,9 +279,9 @@ class WorksheetIO:
                                 style_str = " ".join(style_items)
                                 html_parts.append(f'<span style="{style_str}">{ftxt}</span>')
                                 if font.tail:
-                                    html_parts.append(f"<span>{font.tail}</span>")
+                                    html_parts.append(f"<span>{_decode_maple_escapes(font.tail)}</span>")
                         else:
-                            txt = ''.join(tf.itertext()).strip()
+                            txt = _decode_maple_escapes(''.join(tf.itertext()).strip())
                             tf_bg = tf.attrib.get('background', '')
                             tf_fg = tf.attrib.get('foreground', '') or tf.attrib.get('color', '')
                             bg_val = _parse_worksheet_color(tf_bg)
@@ -276,8 +299,8 @@ class WorksheetIO:
                             if txt:
                                 html_parts.append(f'<span style="{style_str}">{txt}</span>')
                         if tf.tail:
-                            html_parts.append(f"<span>{tf.tail}</span>")
-                    title_text = ''.join(title_elem.itertext()).strip()
+                            html_parts.append(f"<span>{_decode_maple_escapes(tf.tail)}</span>")
+                    title_text = _decode_maple_escapes(''.join(title_elem.itertext()).strip())
 
                 sec_cell = {
                     'cell_id': str(uuid.uuid4())[:8],
@@ -490,6 +513,7 @@ class WorksheetIO:
         raw = "".join(parts).strip()
         cleaned = re.sub(r'\bJSFH\b', '', raw).strip()
         cleaned = re.sub(r'LUkl[A-Za-z0-9+/=]+', '', cleaned).strip()
+        cleaned = _decode_maple_escapes(cleaned)
         return cleaned
 
     @classmethod
@@ -505,6 +529,7 @@ class WorksheetIO:
     def _clean_math_symbols(cls, s: str) -> str:
         if not s:
             return ""
+        s = _decode_maple_escapes(s)
         s = s.replace('&coloneq;', ':=').replace('&uminus0;', '-').replace('&ExponentialE;', 'e')
         s = s.replace('*', ' · ')
         s = re.sub(r'\((\d+)\)\^\((\d+)\)', r'\1^\2', s)
@@ -514,7 +539,7 @@ class WorksheetIO:
             return "".join(sup_map.get(d, d) for d in m.group(1))
         s = re.sub(r'\^(\-?\d+)', replace_sup, s)
 
-        # Normalize atomic subscripts: e.g. "I R 0 atomic 3" -> "I_{R3}", "I start 0 atomic" -> "I_{start}"
+        # Normalize atomic subscripts: e.g. "I R 0 atomic 3" -> "I_{R3}", "I start 0 atomic" -> "I_{start}", "F m 0 atomic" -> "F_{m}"
         s = re.sub(r'\b([A-Za-z]+)\s+([A-Za-z0-9]+)\s+0\s+atomic\s*([A-Za-z0-9]*)\b', lambda m: f"{m.group(1)}_{{{m.group(2)}{m.group(3)}}}", s)
         s = re.sub(r'\b([A-Za-z]+)\s+0\s+atomic\s*([A-Za-z0-9]*)\b', lambda m: f"{m.group(1)}_{{{m.group(2)}}}" if m.group(2) else m.group(1), s)
         s = re.sub(r'\b0\s+atomic\b', '', s)
@@ -528,6 +553,7 @@ class WorksheetIO:
                 txt = sp.get('text', '')
                 txt = re.sub(r'\bJSFH\b', '', txt).strip()
                 txt = re.sub(r'LUkl[A-Za-z0-9+/=]+', '', txt).strip()
+                txt = _decode_maple_escapes(txt)
                 # Clean atomic tokens in spans text
                 txt = re.sub(r'\b([A-Za-z]+)\s+([A-Za-z0-9]+)\s+0\s+atomic\s*([A-Za-z0-9]*)\b', lambda m: f"{m.group(1)}_{{{m.group(2)}{m.group(3)}}}", txt)
                 txt = re.sub(r'\b([A-Za-z]+)\s+0\s+atomic\s*([A-Za-z0-9]*)\b', lambda m: f"{m.group(1)}_{{{m.group(2)}}}" if m.group(2) else m.group(1), txt)
