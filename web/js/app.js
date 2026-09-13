@@ -194,10 +194,7 @@ class OpenMathApp {
     const firstCell = this.worksheet.addCell("diff(sin(x)*cos(x), x)", true);
 
     const addCellTopBtn = document.getElementById("btn-add-cell-top");
-    const addCellBottomBtn = document.getElementById("btn-add-cell-bottom");
-
     if (addCellTopBtn) addCellTopBtn.addEventListener("click", () => this.worksheet.addCell("", true));
-    if (addCellBottomBtn) addCellBottomBtn.addEventListener("click", () => this.worksheet.addCell("", true));
   }
 
   initPalette() {
@@ -358,15 +355,6 @@ class OpenMathApp {
       }
     });
 
-    // Run All button in worksheet footer
-    const runAllBtn = document.getElementById("btn-run-all");
-    if (runAllBtn) {
-      runAllBtn.addEventListener("click", () => {
-        if (this.worksheet) {
-          this.worksheet.evaluateAll();
-        }
-      });
-    }
   }
 }
 
