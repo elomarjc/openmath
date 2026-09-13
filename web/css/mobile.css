@@ -1,6 +1,6 @@
 /**
  * OpenMath Web - Mobile & Phone Responsive Styles
- * Optimized for touch devices, bottom math dock, and virtual keypads.
+ * Optimized for touch devices, clean document presentation, and virtual keypads.
  */
 
 @media (max-width: 768px) {
@@ -13,10 +13,36 @@
     display: inline-flex !important;
   }
 
-  /* Header adjustments */
+  /* Header adjustments & overflow prevention on narrow screens */
   .app-header {
     height: 48px;
-    padding: 0 10px;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .header-center {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 1;
+    min-width: 0;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
   }
 
   .brand-name {
@@ -30,6 +56,22 @@
 
   .precision-picker {
     display: none; /* Hide precision select on small screens to conserve header space */
+  }
+
+  .header-btn {
+    height: 32px;
+    padding: 0 8px;
+  }
+
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+  }
+
+  #theme-toggle-btn {
+    flex-shrink: 0 !important;
+    display: inline-flex !important;
   }
 
   /* Main Layout */
@@ -58,17 +100,20 @@
 
   /* Worksheet Area & Document Canvas on mobile */
   .worksheet-main {
-    padding: 10px 8px 40px 8px;
+    padding: 8px 6px 40px 6px;
     height: 100%;
     overflow-y: auto;
+    background-color: var(--page-canvas-bg);
   }
 
   .worksheet-container {
-    padding: 16px 14px;
+    padding: 16px 14px 40px 14px;
     max-width: 100%;
-    border-radius: 0;
-    box-shadow: none;
+    border-radius: 4px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
     min-height: calc(100vh - 120px);
+    position: relative;
+    background-color: var(--paper-bg);
   }
 
   .cell-execution-group {
@@ -94,6 +139,16 @@
     min-height: 24px;
   }
 
+  /* Document Mode Math on mobile */
+  .worksheet-cell.document-mode .cell-bracket,
+  .worksheet-cell.document-mode .math-prompt {
+    display: none !important;
+  }
+
+  .doc-math-display {
+    font-size: 16px;
+  }
+
   .math-output-wrapper {
     padding: 2px 28px 2px 8px;
     min-height: 24px;
@@ -108,7 +163,7 @@
   }
 
   .cell-section-header {
-    margin-top: 18px;
+    margin-top: 16px;
     margin-bottom: 6px;
   }
 
@@ -116,25 +171,30 @@
     font-size: 16px;
   }
 
+  /* Section Indentation on mobile */
+  .worksheet-cell.level-0 {
+    padding-left: 14px;
+  }
+  .worksheet-cell.level-1 {
+    padding-left: 26px;
+  }
+  .worksheet-cell.level-2 {
+    padding-left: 38px;
+  }
+
+  .cell-section-header.level-0 {
+    padding-left: 0;
+  }
   .cell-section-header.level-1 {
-    margin-left: 8px;
+    padding-left: 12px;
   }
-
-  .cell-section-header.level-1 .section-title-display {
-    font-size: 15px;
-  }
-
   .cell-section-header.level-2 {
-    margin-left: 16px;
-  }
-
-  .cell-section-header.level-2 .section-title-display {
-    font-size: 13px;
+    padding-left: 24px;
   }
 
   .text-cell-body {
     font-size: 14px;
-    margin: 2px 0 4px 12px;
+    margin: 2px 0 4px 4px;
   }
 
   .worksheet-footer-bar {

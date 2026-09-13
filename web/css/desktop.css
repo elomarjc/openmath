@@ -629,3 +629,140 @@
 .mobile-only {
   display: none !important;
 }
+
+/* Continuous Section Tree Brackets (Hierarchical Scope Overlay) */
+.section-tree-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Document Mode Math Formatting (Clean Desktop Presentation) */
+.worksheet-cell.document-mode .cell-bracket,
+.worksheet-cell.document-mode .math-prompt {
+  display: none !important;
+}
+
+.worksheet-cell.document-mode .cell-input-row {
+  min-height: 24px;
+  padding: 1px 0;
+}
+
+.doc-math-display {
+  font-family: "Times New Roman", Times, "Cambria Math", serif;
+  font-size: 16.5px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px;
+  cursor: text;
+  width: 100%;
+  user-select: text;
+}
+
+.doc-math-display .doc-var {
+  font-style: italic;
+}
+
+.doc-math-display .doc-upright {
+  font-style: normal;
+}
+
+.doc-math-frac {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: middle;
+  margin: 0 4px;
+  font-size: 0.92em;
+  line-height: 1.15;
+}
+
+.doc-math-num {
+  padding: 0 3px 1px 3px;
+}
+
+.doc-math-bar {
+  display: block;
+  width: 100%;
+  border-bottom: 1.5px solid currentColor;
+  margin: 1px 0;
+}
+
+.doc-math-den {
+  padding: 1px 3px 0 3px;
+}
+
+.doc-math-part {
+  display: inline-flex;
+  align-items: baseline;
+}
+
+/* Hierarchical Section Indentation matching Desktop OpenMath */
+.worksheet-cell.level-0 {
+  padding-left: 20px;
+}
+.worksheet-cell.level-1 {
+  padding-left: 38px;
+}
+.worksheet-cell.level-2 {
+  padding-left: 56px;
+}
+.worksheet-cell.level-3 {
+  padding-left: 74px;
+}
+
+.cell-section-header.level-0 {
+  padding-left: 0;
+}
+.cell-section-header.level-1 {
+  padding-left: 18px;
+}
+.cell-section-header.level-2 {
+  padding-left: 36px;
+}
+.cell-section-header.level-3 {
+  padding-left: 54px;
+}
+
+/* Sidebar Theme Switcher */
+.sidebar-theme-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-surface);
+}
+
+.sidebar-theme-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sidebar-theme-pills .pill-option {
+  padding: 3px 10px;
+  font-size: 11px;
+}
+
+/* Text Headings in Text Mode Cells */
+.text-heading-1 {
+  font-size: 19px;
+  font-weight: bold;
+  margin: 6px 0 4px 0;
+  color: var(--text-primary);
+}
+
+.text-heading-2 {
+  font-size: 16px;
+  font-weight: bold;
+  margin: 4px 0 2px 0;
+  color: var(--text-primary);
+}

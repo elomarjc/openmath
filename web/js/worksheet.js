@@ -16,6 +16,12 @@ export class WorksheetManager {
     this.cells = [];
     this.cellCounter = 0;
     this.activeCellId = null;
+
+    if (typeof ResizeObserver !== "undefined") {
+      new ResizeObserver(() => this.updateSectionBraces()).observe(this.container);
+    } else {
+      window.addEventListener("resize", () => this.updateSectionBraces());
+    }
   }
 
   setTheme(theme) {
@@ -27,6 +33,7 @@ export class WorksheetManager {
         cell.plotInstance.render();
       }
     });
+    this.updateSectionBraces();
   }
 
   setGlobalPrecision(precision) {
@@ -70,10 +77,19 @@ export class WorksheetManager {
     inputEl.setSelectionRange(newCursor, newCursor);
   }
 
-  addCell(initialText = "", focus = true, cachedResult = null) {
+  addCell(initialText = "", focus = true, cachedResult = null, options = {}) {
     this.cellCounter++;
     const idx = this.cellCounter;
     const cellId = `cell_${idx}`;
+
+    const isWsMode = options.is_worksheet_mode !== undefined ? Boolean(options.is_worksheet_mode) : true;
+    const inputMode = options.input_mode !== undefined ? options.input_mode : 0;
+    const secLevel = options.section_level || 0;
+    const spans = options.spans || [];
+    const isNonExec = inputMode === 3;
+    const isText = inputMode === 2;
+    const isDocumentMode = !isWsMode || isNonExec;
+    const showPromptAndBracket = isWsMode && !isNonExec && !isText;
 
     const cellObj = {
       id: cellId,
@@ -83,20 +99,29 @@ export class WorksheetManager {
       result: null,
       plotInstance: null,
       dom: null,
-      inputEl: null
+      inputEl: null,
+      isDocumentMode: isDocumentMode,
+      spans: spans
     };
 
     const cellEl = document.createElement("div");
-    cellEl.className = "worksheet-cell cell-execution-group";
+    cellEl.className = `worksheet-cell cell-execution-group${isDocumentMode ? " document-mode" : ""}${secLevel > 0 ? ` level-${secLevel}` : ""}`;
     cellEl.id = cellId;
     cellEl.dataset.cellId = cellId;
+    cellEl.dataset.sectionLevel = secLevel;
+
+    const hasRichDocDisplay = isDocumentMode && (spans.length > 0 || initialText.trim().length > 0);
+    const docDisplayHtml = hasRichDocDisplay ? this.renderDocMath(initialText, spans) : "";
 
     cellEl.innerHTML = `
-      <div class="cell-bracket" title="Execution Group ["></div>
+      <div class="cell-bracket" ${showPromptAndBracket ? "" : 'style="display: none;"'} title="Execution Group ["></div>
       <div class="cell-content">
         <div class="cell-input-row">
-          <span class="math-prompt">&gt;</span>
-          <textarea class="cell-input" placeholder="" rows="1" spellcheck="false">${this.escapeHtml(initialText)}</textarea>
+          <span class="math-prompt" ${showPromptAndBracket ? "" : 'style="display: none;"'}>&gt;</span>
+          <div class="cell-editor-container" style="flex: 1; min-width: 0;">
+            ${hasRichDocDisplay ? `<div class="doc-math-display">${docDisplayHtml}</div>` : ""}
+            <textarea class="cell-input" placeholder="" rows="1" spellcheck="false" ${hasRichDocDisplay ? 'style="display: none;"' : ''}>${this.escapeHtml(initialText)}</textarea>
+          </div>
         </div>
         <div class="cell-output-row" style="display: none;">
           <div class="math-output-wrapper">
@@ -108,6 +133,7 @@ export class WorksheetManager {
     `;
 
     const inputEl = cellEl.querySelector(".cell-input");
+    const docDisplayEl = cellEl.querySelector(".doc-math-display");
     cellObj.dom = cellEl;
     cellObj.inputEl = inputEl;
 
@@ -116,7 +142,22 @@ export class WorksheetManager {
       inputEl.style.height = "auto";
       inputEl.style.height = `${inputEl.scrollHeight}px`;
     };
-    inputEl.addEventListener("input", autoResize);
+
+    if (docDisplayEl) {
+      docDisplayEl.addEventListener("click", () => {
+        docDisplayEl.style.display = "none";
+        inputEl.style.display = "block";
+        autoResize();
+        inputEl.focus();
+      });
+    }
+
+    inputEl.addEventListener("input", () => {
+      autoResize();
+      if (docDisplayEl) {
+        docDisplayEl.innerHTML = this.renderDocMath(inputEl.value, []);
+      }
+    });
 
     // Focus tracking
     inputEl.addEventListener("focus", () => {
@@ -125,9 +166,21 @@ export class WorksheetManager {
       cellEl.classList.add("focused");
     });
 
+    inputEl.addEventListener("blur", () => {
+      if (isDocumentMode && docDisplayEl && inputEl.value.trim()) {
+        docDisplayEl.innerHTML = this.renderDocMath(inputEl.value, spans.length ? spans : []);
+        inputEl.style.display = "none";
+        docDisplayEl.style.display = "flex";
+      }
+    });
+
     const bracketEl = cellEl.querySelector(".cell-bracket");
     if (bracketEl) {
       bracketEl.addEventListener("click", () => {
+        if (docDisplayEl && docDisplayEl.style.display !== "none") {
+          docDisplayEl.style.display = "none";
+          inputEl.style.display = "block";
+        }
         inputEl.focus();
       });
     }
@@ -141,7 +194,6 @@ export class WorksheetManager {
         e.preventDefault();
         this.evaluateCell(cellId);
       } else if (e.key === "Backspace" && inputEl.value === "") {
-        // If empty cell, backspace deletes and moves focus to previous cell
         if (this.cells.length > 1) {
           e.preventDefault();
           const currIdx = this.cells.findIndex((c) => c.id === cellId);
@@ -183,6 +235,10 @@ export class WorksheetManager {
     }
 
     if (focus) {
+      if (docDisplayEl && isDocumentMode) {
+        docDisplayEl.style.display = "none";
+        inputEl.style.display = "block";
+      }
       inputEl.focus();
       this.activeCellId = cellId;
     }
@@ -220,9 +276,11 @@ export class WorksheetManager {
       secEl.dataset.collapsed = nextCollapsed ? "true" : "false";
       chevron.textContent = nextCollapsed ? "▶" : "▼";
       this.toggleSectionCollapse(secEl, level, nextCollapsed);
+      this.updateSectionBraces();
     });
 
     this.container.appendChild(secEl);
+    this.updateSectionBraces();
     return secEl;
   }
 
@@ -238,16 +296,19 @@ export class WorksheetManager {
       sibling.style.display = isCollapsed ? "none" : "";
       sibling = sibling.nextElementSibling;
     }
+    this.updateSectionBraces();
   }
 
-  addTextCell(content = "", embeddedImages = {}) {
+  addTextCell(content = "", embeddedImages = {}, options = {}) {
     this.cellCounter++;
     const idx = this.cellCounter;
     const cellId = `text_cell_${idx}`;
+    const secLevel = options.section_level || 0;
 
     const textEl = document.createElement("div");
-    textEl.className = "worksheet-cell cell-text-mode";
+    textEl.className = `worksheet-cell cell-text-mode${secLevel > 0 ? ` level-${secLevel}` : ""}`;
     textEl.id = cellId;
+    textEl.dataset.sectionLevel = secLevel;
 
     let formatted = content || "";
     if (embeddedImages && typeof embeddedImages === "object") {
@@ -257,11 +318,19 @@ export class WorksheetManager {
       }
     }
 
+    // Header styling if markdown heading
+    if (formatted.startsWith("# ")) {
+      formatted = `<h2 class="text-heading-1">${formatted.substring(2)}</h2>`;
+    } else if (formatted.startsWith("## ")) {
+      formatted = `<h3 class="text-heading-2">${formatted.substring(3)}</h3>`;
+    }
+
     textEl.innerHTML = `
       <div class="text-cell-body" contenteditable="true" spellcheck="false">${formatted}</div>
     `;
 
     this.container.appendChild(textEl);
+    this.updateSectionBraces();
     return textEl;
   }
 
@@ -275,6 +344,7 @@ export class WorksheetManager {
     if (this.cells.length === 0) {
       this.addCell();
     }
+    this.updateSectionBraces();
   }
 
   clearWorksheet() {
@@ -283,6 +353,7 @@ export class WorksheetManager {
     this.cellCounter = 0;
     this.activeCellId = null;
     this.addCell();
+    this.updateSectionBraces();
   }
 
   loadImportedCells(cells) {
@@ -298,25 +369,36 @@ export class WorksheetManager {
       const inp = c.input !== undefined ? c.input : "";
       const isSec = Boolean(c.is_section_header || c.mode === "section");
       const isText = Boolean(c.input_mode === 2 || c.mode === "text");
+      const secLevel = c.section_level || 0;
+
+      if (pendingCollapsedSection && secLevel <= pendingCollapsedSection.level) {
+        pendingCollapsedSection = null;
+      }
 
       if (isSec) {
         const title = c.section_title || inp || "Section";
-        const secEl = this.addSectionHeader(title, c.section_level || 0, c.section_html, c.is_collapsed);
-        if (c.is_collapsed) {
-          pendingCollapsedSection = { el: secEl, level: c.section_level || 0 };
-        } else {
-          pendingCollapsedSection = null;
+        const secEl = this.addSectionHeader(title, secLevel, c.section_html, c.is_collapsed);
+        if (pendingCollapsedSection) {
+          secEl.style.display = "none";
+        }
+        if (c.is_collapsed && !pendingCollapsedSection) {
+          pendingCollapsedSection = { el: secEl, level: secLevel };
         }
       } else if (isText) {
         if (inp.trim() !== "") {
-          const textEl = this.addTextCell(inp, c.embedded_images);
+          const textEl = this.addTextCell(inp, c.embedded_images, { section_level: secLevel });
           if (pendingCollapsedSection) {
             textEl.style.display = "none";
           }
         }
       } else {
-        // Math calculation cell with cached result support
-        const cellObj = this.addCell(inp, false, c.result);
+        // Math calculation cell with cached result & Document Mode support
+        const cellObj = this.addCell(inp, false, c.result, {
+          is_worksheet_mode: c.is_worksheet_mode,
+          input_mode: c.input_mode,
+          section_level: secLevel,
+          spans: c.spans || []
+        });
         if (pendingCollapsedSection) {
           cellObj.dom.style.display = "none";
         }
@@ -329,6 +411,138 @@ export class WorksheetManager {
       this.activeCellId = this.cells[0].id;
       this.cells[0].dom.classList.add("focused");
     }
+
+    // Redraw continuous section tree brackets matching Desktop OpenMath
+    requestAnimationFrame(() => {
+      this.updateSectionBraces();
+    });
+  }
+
+  updateSectionBraces() {
+    let svg = this.container.querySelector("#section-tree-overlay");
+    if (!svg) {
+      svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("class", "section-tree-overlay");
+      svg.setAttribute("id", "section-tree-overlay");
+      this.container.insertBefore(svg, this.container.firstChild);
+    }
+
+    while (svg.firstChild) {
+      svg.removeChild(svg.firstChild);
+    }
+
+    const containerRect = this.container.getBoundingClientRect();
+    const cells = Array.from(this.container.children).filter((el) =>
+      el.classList.contains("worksheet-cell")
+    );
+
+    for (let i = 0; i < cells.length; i++) {
+      const cell = cells[i];
+      if (!cell.classList.contains("cell-section-header")) continue;
+      if (cell.dataset.collapsed === "true") continue;
+      if (cell.offsetParent === null) continue;
+
+      const secLevel = parseInt(cell.dataset.sectionLevel || "0", 10);
+      const toggleBtn = cell.querySelector(".section-toggle-btn");
+      if (!toggleBtn) continue;
+
+      const btnRect = toggleBtn.getBoundingClientRect();
+      const startX = Math.round(btnRect.left + btnRect.width / 2 - containerRect.left);
+      const startY = Math.round(btnRect.bottom - 2 - containerRect.top);
+
+      let lastCell = null;
+      for (let j = i + 1; j < cells.length; j++) {
+        const child = cells[j];
+        if (child.offsetParent === null) continue;
+
+        if (child.classList.contains("cell-section-header")) {
+          const childLevel = parseInt(child.dataset.sectionLevel || "0", 10);
+          if (childLevel <= secLevel) {
+            break;
+          }
+        } else {
+          const childLevel = parseInt(child.dataset.sectionLevel || "0", 10);
+          if (childLevel < secLevel) {
+            break;
+          }
+        }
+        lastCell = child;
+      }
+
+      if (lastCell) {
+        const lastRect = lastCell.getBoundingClientRect();
+        const endY = Math.round(lastRect.bottom - 4 - containerRect.top);
+        if (endY > startY) {
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          path.setAttribute("d", `M ${startX} ${startY} V ${endY} H ${startX + 8}`);
+          path.setAttribute("stroke", "var(--bracket-color, #8e9aaf)");
+          path.setAttribute("stroke-width", "1.5");
+          path.setAttribute("fill", "none");
+          path.setAttribute("stroke-linecap", "square");
+          svg.appendChild(path);
+        }
+      }
+    }
+  }
+
+  renderDocMath(text, spans = []) {
+    if (spans && spans.length > 0) {
+      return this.renderSpansHtml(spans);
+    }
+    return this.formatMathSnippet(text);
+  }
+
+  renderSpansHtml(spans) {
+    if (!spans || !spans.length) return "";
+    let parts = [];
+    for (const sp of spans) {
+      if (sp.type === "fraction") {
+        const numHtml = this.formatMathSnippet(sp.num);
+        const denHtml = this.formatMathSnippet(sp.den);
+        parts.push(`<span class="doc-math-frac"><span class="doc-math-num">${numHtml}</span><span class="doc-math-bar"></span><span class="doc-math-den">${denHtml}</span></span>`);
+      } else {
+        let t = sp.text || "";
+        let style = "";
+        if (sp.bg_color) {
+          style += `background-color: ${sp.bg_color}; padding: 2px 6px; border-radius: 3px; font-weight: bold;`;
+        }
+        if (sp.color) {
+          style += `color: ${sp.color}; font-weight: bold;`;
+        }
+        const formatted = this.formatMathSnippet(t);
+        if (style) {
+          parts.push(`<span style="${style}">${formatted}</span>`);
+        } else {
+          parts.push(`<span class="doc-math-part">${formatted}</span>`);
+        }
+      }
+    }
+    return parts.join(" ");
+  }
+
+  formatMathSnippet(str) {
+    if (!str) return "";
+    let s = this.escapeHtml(str);
+
+    // Convert subscripts: e.g. I_{R3} or I_R3 or I_slut
+    s = s.replace(/([a-zA-Z\u0370-\u03ff]+)_\{([^}]+)\}/g, '<span class="doc-var">$1</span><sub>$2</sub>');
+    s = s.replace(/([a-zA-Z\u0370-\u03ff]+)_([a-zA-Z0-9\u00e6\u00f8\u00e5]+)/g, '<span class="doc-var">$1</span><sub>$2</sub>');
+
+    // Convert superscripts: e.g. x^{2} or x^2
+    s = s.replace(/\^\{([^}]+)\}/g, '<sup>$1</sup>');
+    s = s.replace(/\^([0-9\+\-]+)/g, '<sup>$1</sup>');
+
+    // Standalone variable identifiers italicized: e.g. V, I, R, t, e, pi, omega
+    s = s.replace(/\b([a-zA-Z\u0370-\u03ff])\b/g, '<span class="doc-var">$1</span>');
+
+    // Clean operators
+    s = s.replace(/\s*:=\s*/g, ' <span class="doc-upright">:=</span> ');
+    s = s.replace(/\s*=\s*/g, ' <span class="doc-upright">=</span> ');
+    s = s.replace(/\s*\*\s*/g, ' <span class="doc-upright">·</span> ');
+    s = s.replace(/\s*\+\s*/g, ' <span class="doc-upright">+</span> ');
+    s = s.replace(/(?<=[0-9a-zA-Z])\s*-\s*(?=[0-9a-zA-Z])/g, ' <span class="doc-upright">−</span> ');
+
+    return s;
   }
 
   evaluateCell(cellId) {

@@ -321,12 +321,70 @@ def batch_decode_displays(displays: List[str]) -> List[Tuple[str, str]]:
     return results
 
 
+HTML_ENTITIES = {
+    '&uminus0;': '-',
+    '&minus;': '-',
+    '&plus;': '+',
+    '&equals;': '=',
+    '&rightarrow;': '->',
+    '&comma;': ',',
+    '&verbar;': '|',
+    '&sdot;': '*',
+    '&InvisibleTimes;': '*',
+    '&ApplyFunction;': ' ',
+    '&DifferentialD;': 'd',
+    '&ExponentialE;': 'e',
+    '&ImaginaryI;': 'I',
+    '&pi;': 'pi',
+    '&tau;': 'tau',
+    '&omega;': 'omega',
+    '&#969;': 'omega',
+    '&#960;': 'pi',
+    '&#8486;': 'Ohm',
+    '&Omega;': 'Omega',
+    '&#230;': 'æ',
+    '&#8722;': '-',
+    '&alpha;': 'alpha',
+    '&beta;': 'beta',
+    '&gamma;': 'gamma',
+    '&theta;': 'theta',
+    '&#952;': 'theta',
+    '&lambda;': 'lambda',
+    '&mu;': 'mu',
+    '&phi;': 'phi',
+    '&psi;': 'psi',
+    '&Delta;': 'Delta',
+    '&lsqb;': '[',
+    '&rsqb;': ']',
+    '&lcub;': '{',
+    '&rcub;': '}',
+    '&lpar;': '(',
+    '&rpar;': ')',
+    '&le;': '<=',
+    '&ge;': '>=',
+    '&ne;': '<>',
+    '&approx;': '≈',
+    '&infin;': 'infinity',
+    '&deg;': '°',
+    '&angle;': '∠',
+    '&DoubleRightArrow;': '=>',
+}
+
+LAYOUT_WORDS = {
+    'true', 'false', 'normal', 'center', '2D~Input', '2D~Output', 'italic',
+    'unset', 'placeholder', 'baseline', 'axis', 'right', 'left', 'none',
+    'auto', 'ColVector', 'RowVector', 'Matrix', 'Times~New~Roman', 'bold'
+}
+
+
 def decode_display_pure_python(display: str) -> Tuple[str, str]:
     """Pure Python extraction of numbers, identifiers, operators, fractions, and superscripts from dotm."""
     if not display:
         return ("", "")
     try:
         dotm = worksheet_base64_decode(display)
+        if not dotm:
+            return ("", "")
         # Check if empty placeholder line (mi with empty string)
         if "miGF$6#Q!" in dotm or ("Q!" in dotm and "mrow" in dotm and len(dotm) < 150):
             if not re.search(r'Q(?:[0-9]+|[!%\"\(])([0-9\+\-\*\/\.]+)', dotm):
@@ -343,34 +401,71 @@ def decode_display_pure_python(display: str) -> Tuple[str, str]:
                         i += 1
                     continue
 
-                if s[i] == 'Q':
-                    i += 1
-                    if i < n:
-                        len_char = s[i]
-                        length = ord(len_char) - 33
-                        i += 1
-                        val = s[i:i+length]
-                        i += length
-                        if val and val not in ('true', 'false', 'normal', 'center', '2D~Input', 'italic'):
-                            if val in ('&sdot;', '&InvisibleTimes;'):
-                                toks.append('*')
-                            elif val == '&minus;':
-                                toks.append('-')
-                            elif val == '&plus;':
-                                toks.append('+')
-                            elif not val.endswith('em') and not val.endswith('ex') and not (val.startswith('[') and val.endswith(']')):
-                                toks.append(val)
-                    continue
+                if s[i] == 'Q' and i + 1 < n:
+                    len_char = s[i+1]
+                    length = ord(len_char) - 33
+                    # Maple string tokens in the DAG are strictly terminated with F'
+                    if 0 <= length < 120 and i + 2 + length + 2 <= n and s[i+2+length : i+2+length+2] == "F'":
+                        val = s[i+2 : i+2+length]
+                        i += 2 + length + 2
+
+                        if not val or val in LAYOUT_WORDS:
+                            continue
+                        if val.endswith('em') or val.endswith('ex') or (val.startswith('[') and val.endswith(']')):
+                            continue
+
+                        val = HTML_ENTITIES.get(val, val)
+                        val = val.strip()
+                        if val:
+                            toks.append(val)
+                        continue
                 i += 1
             return toks
 
         def clean_toks(toks):
             res = []
-            for t in toks:
+            k = 0
+            while k < len(toks):
+                t = toks[k]
+                if t == 'atomic':
+                    k += 1
+                    continue
+                if t == '0' and k + 1 < len(toks) and toks[k+1] == 'atomic':
+                    k += 2
+                    if k < len(toks) and toks[k] not in ('=', '+', '-', '*', '/', ')', '(', ',', ';', ':'):
+                        sub = toks[k]
+                        k += 1
+                        if res:
+                            res[-1] = f"{res[-1]}_{sub}"
+                        else:
+                            res.append(sub)
+                    continue
                 if t == '*' and res and res[-1] == '*':
+                    k += 1
+                    continue
+                if t == '=' and res and res[-1] == '=':
+                    k += 1
                     continue
                 res.append(t)
-            return " ".join(res).strip()
+                k += 1
+
+            out = []
+            for t in res:
+                if t in (',', ';', ':'):
+                    if out:
+                        out[-1] += t
+                    else:
+                        out.append(t)
+                elif t in (')', ']', '}'):
+                    if out and out[-1] in ('(', '[', '{'):
+                        out[-1] += t
+                    elif out:
+                        out[-1] += t
+                    else:
+                        out.append(t)
+                else:
+                    out.append(t)
+            return " ".join(out).strip()
 
         # Handle mfrac
         if "mfrac" in dotm:
@@ -414,3 +509,4 @@ def decode_display_pure_python(display: str) -> Tuple[str, str]:
         return (expr, expr)
     except Exception:
         return ("", "")
+

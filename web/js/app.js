@@ -41,6 +41,19 @@ class OpenMathApp {
         this.applyTheme(nextTheme);
       });
     }
+
+    const themeOptDark = document.getElementById("theme-opt-dark");
+    const themeOptLight = document.getElementById("theme-opt-light");
+    if (themeOptDark) {
+      themeOptDark.addEventListener("click", () => {
+        this.applyTheme("dark");
+      });
+    }
+    if (themeOptLight) {
+      themeOptLight.addEventListener("click", () => {
+        this.applyTheme("light");
+      });
+    }
   }
 
   applyTheme(theme) {
@@ -63,6 +76,18 @@ class OpenMathApp {
       } else {
         moonIcon.style.display = "none";
         sunIcon.style.display = "block";
+      }
+    }
+
+    const themeOptDark = document.getElementById("theme-opt-dark");
+    const themeOptLight = document.getElementById("theme-opt-light");
+    if (themeOptDark && themeOptLight) {
+      if (theme === "dark") {
+        themeOptDark.classList.add("active");
+        themeOptLight.classList.remove("active");
+      } else {
+        themeOptDark.classList.remove("active");
+        themeOptLight.classList.add("active");
       }
     }
 

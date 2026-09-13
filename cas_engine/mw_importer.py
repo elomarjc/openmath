@@ -393,8 +393,14 @@ class WorksheetIO:
                                     out_bg = out_elem.attrib.get('background')
                                     break
                             if out_m:
-                                spans.append({'type': 'text', 'text': ' = ', 'mode': 'text'})
-                                text_parts.append(f"= {out_m}")
+                                last_txt = text_parts[-1].rstrip() if text_parts else ""
+                                last_span_txt = spans[-1].get('text', '').rstrip() if spans else ""
+                                already_has_equals = last_txt.endswith('=') or last_span_txt.endswith('=')
+                                if not already_has_equals:
+                                    spans.append({'type': 'text', 'text': ' = ', 'mode': 'text'})
+                                    text_parts.append(f"= {out_m}")
+                                else:
+                                    text_parts.append(f"{out_m}")
                                 if out_bg:
                                     m_rgb = re.search(r'\[(\d+),\s*(\d+),\s*(\d+)\]', out_bg)
                                     bg_col = f"#{int(m_rgb.group(1)):02x}{int(m_rgb.group(2)):02x}{int(m_rgb.group(3)):02x}" if m_rgb else "#00ff00"
@@ -507,6 +513,11 @@ class WorksheetIO:
         def replace_sup(m):
             return "".join(sup_map.get(d, d) for d in m.group(1))
         s = re.sub(r'\^(\-?\d+)', replace_sup, s)
+
+        # Normalize atomic subscripts: e.g. "I R 0 atomic 3" -> "I_{R3}", "I start 0 atomic" -> "I_{start}"
+        s = re.sub(r'\b([A-Za-z]+)\s+([A-Za-z0-9]+)\s+0\s+atomic\s*([A-Za-z0-9]*)\b', lambda m: f"{m.group(1)}_{{{m.group(2)}{m.group(3)}}}", s)
+        s = re.sub(r'\b([A-Za-z]+)\s+0\s+atomic\s*([A-Za-z0-9]*)\b', lambda m: f"{m.group(1)}_{{{m.group(2)}}}" if m.group(2) else m.group(1), s)
+        s = re.sub(r'\b0\s+atomic\b', '', s)
         return s.strip()
 
     @classmethod
@@ -517,6 +528,10 @@ class WorksheetIO:
                 txt = sp.get('text', '')
                 txt = re.sub(r'\bJSFH\b', '', txt).strip()
                 txt = re.sub(r'LUkl[A-Za-z0-9+/=]+', '', txt).strip()
+                # Clean atomic tokens in spans text
+                txt = re.sub(r'\b([A-Za-z]+)\s+([A-Za-z0-9]+)\s+0\s+atomic\s*([A-Za-z0-9]*)\b', lambda m: f"{m.group(1)}_{{{m.group(2)}{m.group(3)}}}", txt)
+                txt = re.sub(r'\b([A-Za-z]+)\s+0\s+atomic\s*([A-Za-z0-9]*)\b', lambda m: f"{m.group(1)}_{{{m.group(2)}}}" if m.group(2) else m.group(1), txt)
+                txt = re.sub(r'\b0\s+atomic\b', '', txt).strip()
                 if not txt:
                     continue
                 if txt == '=' and cleaned and cleaned[-1].get('type') == 'text' and cleaned[-1].get('text', '').strip().endswith('='):

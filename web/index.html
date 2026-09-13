@@ -119,6 +119,15 @@
         </button>
       </div>
 
+      <!-- Quick Theme Switcher in Sidebar (Visible on Phone/Tablet) -->
+      <div class="sidebar-theme-bar">
+        <span class="sidebar-theme-title">Theme</span>
+        <div class="mode-pill-group sidebar-theme-pills">
+          <button id="theme-opt-dark" class="pill-option active" title="Switch to Dark Mode">🌙 Dark</button>
+          <button id="theme-opt-light" class="pill-option" title="Switch to Light Mode">☀️ Light</button>
+        </div>
+      </div>
+
       <div class="palettes-container">
         <!-- 1. Expression Templates -->
         <div class="palette-section">
@@ -237,6 +246,8 @@
     <!-- Main Central Worksheet Area -->
     <main class="worksheet-main">
       <div id="worksheet-container" class="worksheet-container">
+        <!-- Continuous Section Tree Scope Overlay -->
+        <svg class="section-tree-overlay" id="section-tree-overlay"></svg>
         <!-- Dynamic [In n] and [Out n] Calculation Cells will be injected here -->
       </div>
 
